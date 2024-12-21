@@ -49,5 +49,8 @@ int main() {
 
     SequentialHistogramEqualization(input.ptr(), height, width);
 
+    cv::imshow("Output", input);
+    cv::waitKey(0);
+
     return 0;
 }

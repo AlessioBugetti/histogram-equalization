@@ -1,10 +1,13 @@
 cmake_minimum_required(VERSION 3.30)
-project(histogram_equalizer)
+project(histogram_equalizer LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(histogram_equalizer main.cc)
+find_package(CUDAToolkit REQUIRED)
 
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
-target_link_libraries(histogram_equalizer ${OpenCV_LIBS})
+
+add_executable(histogram_equalizer main.cu)
+
+target_link_libraries(histogram_equalizer CUDA::cudart ${OpenCV_LIBS})
