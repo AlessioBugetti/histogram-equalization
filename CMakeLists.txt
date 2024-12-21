@@ -3,7 +3,7 @@ project(histogram_equalizer)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(histogram_equalizer main.cpp)
+add_executable(histogram_equalizer main.cc)
 
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
