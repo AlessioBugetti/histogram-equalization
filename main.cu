@@ -7,6 +7,7 @@
 
 #define BLOCK_SIZE 1024
 #define NUM_BINS 256
+#define NUM_ITERATIONS 1000
 
 void
 SequentialHistogramEqualization(const unsigned char* input,
@@ -79,12 +80,12 @@ CalculateHistogram(const unsigned char* input,
 __global__ void
 CalculateCdf(unsigned int* cdf, const unsigned int* histogram)
 {
-    __shared__ unsigned int tmp[NUM_BINS];
+    __shared__ unsigned int cache[NUM_BINS];
     const unsigned int tid = threadIdx.x;
 
     if (tid < NUM_BINS)
     {
-        tmp[tid] = histogram[tid];
+        cache[tid] = histogram[tid];
     }
 
     for (unsigned int stride = 1; stride < NUM_BINS; stride *= 2)
@@ -92,14 +93,14 @@ CalculateCdf(unsigned int* cdf, const unsigned int* histogram)
         __syncthreads();
         if (tid >= stride)
         {
-            tmp[tid] += tmp[tid - stride];
+            cache[tid] += cache[tid - stride];
         }
     }
     __syncthreads();
 
     if (tid < NUM_BINS)
     {
-        cdf[tid] = tmp[tid];
+        cdf[tid] = cache[tid];
     }
 }
 
@@ -183,7 +184,6 @@ main()
 
     for (const auto& entry : std::filesystem::directory_iterator(data_directory))
     {
-        constexpr int iterations = 10000;
         std::string image_path = entry.path().string();
 
         cv::Mat input = cv::imread(image_path, cv::IMREAD_GRAYSCALE);
@@ -200,7 +200,7 @@ main()
         long totalSequentialTime = 0;
         long totalCudaTime = 0;
 
-        for (int i = 0; i < iterations; i++)
+        for (int i = 0; i < NUM_ITERATIONS; i++)
         {
             auto start = std::chrono::high_resolution_clock::now();
             SequentialHistogramEqualization(input.ptr(), output.ptr(), pixelCount);
@@ -209,7 +209,7 @@ main()
                 std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
         }
 
-        for (int i = 0; i < iterations; i++)
+        for (int i = 0; i < NUM_ITERATIONS; i++)
         {
             auto start = std::chrono::high_resolution_clock::now();
             CudaHistogramEqualization(input.ptr(), output.ptr(), pixelCount);
@@ -218,8 +218,8 @@ main()
                 std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
         }
 
-        double meanSequentialTime = static_cast<double>(totalSequentialTime) / iterations;
-        double meanCudaTime = static_cast<double>(totalCudaTime) / iterations;
+        double meanSequentialTime = static_cast<double>(totalSequentialTime) / NUM_ITERATIONS;
+        double meanCudaTime = static_cast<double>(totalCudaTime) / NUM_ITERATIONS;
 
         double speedup = meanSequentialTime / meanCudaTime;
 
