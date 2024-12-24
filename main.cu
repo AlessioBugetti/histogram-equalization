@@ -108,7 +108,8 @@ NormalizeCdf(unsigned int* cdf, const unsigned int cdfMin, const unsigned int pi
 {
     if (const unsigned int tid = threadIdx.x; tid < NUM_BINS)
     {
-        cdf[tid] = ((cdf[tid] - cdfMin) * 255) / (pixelCount - cdfMin);
+        cdf[tid] = __double2int_rn(static_cast<double>(cdf[tid] - cdfMin) / (pixelCount - cdfMin) *
+                                   (NUM_BINS - 1));
     }
 }
 
