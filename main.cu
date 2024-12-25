@@ -78,29 +78,133 @@ CalculateHistogram(const unsigned char* input,
 }
 
 __global__ void
-CalculateCdf(unsigned int* cdf, const unsigned int* histogram)
+KoggeStoneScan(unsigned int* cdf, const unsigned int* histogram)
 {
     __shared__ unsigned int cache[NUM_BINS];
-    const unsigned int tid = threadIdx.x;
+    unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (tid < NUM_BINS)
     {
-        cache[tid] = histogram[tid];
+        cache[threadIdx.x] = histogram[tid];
+    }
+    else
+    {
+        cache[threadIdx.x] = 0;
     }
 
-    for (unsigned int stride = 1; stride < NUM_BINS; stride *= 2)
+    for (unsigned int stride = 1; stride < blockDim.x; stride *= 2)
     {
         __syncthreads();
-        if (tid >= stride)
+        unsigned int temp = cache[threadIdx.x];
+        if (threadIdx.x >= stride)
         {
-            cache[tid] += cache[tid - stride];
+            temp += cache[threadIdx.x - stride];
+        }
+        __syncthreads();
+
+        if (threadIdx.x >= stride)
+        {
+            cache[threadIdx.x] = temp;
         }
     }
-    __syncthreads();
 
     if (tid < NUM_BINS)
     {
-        cdf[tid] = cache[tid];
+        cdf[tid] = cache[threadIdx.x];
+    }
+}
+
+__global__ void
+KoggeStoneScanDoubleBuffer(unsigned int* cdf, const unsigned int* histogram)
+{
+    __shared__ unsigned int cache[NUM_BINS];
+    __shared__ unsigned int cacheAux[NUM_BINS];
+
+    const unsigned int tid = threadIdx.x + blockIdx.x * blockDim.x;
+    if (tid < NUM_BINS)
+    {
+        cache[threadIdx.x] = histogram[tid];
+        cacheAux[threadIdx.x] = histogram[tid];
+    }
+    else
+    {
+        cache[threadIdx.x] = 0;
+        cacheAux[threadIdx.x] = 0;
+    }
+
+    unsigned int* inputBuffer = cache;
+    unsigned int* outputBuffer = cacheAux;
+
+    for (unsigned int stride = 1; stride < blockDim.x; stride *= 2)
+    {
+        __syncthreads();
+
+        unsigned int* temp = inputBuffer;
+        inputBuffer = outputBuffer;
+        outputBuffer = temp;
+
+        if (threadIdx.x >= stride)
+        {
+            outputBuffer[threadIdx.x] =
+                inputBuffer[threadIdx.x] + inputBuffer[threadIdx.x - stride];
+        }
+        else
+        {
+            outputBuffer[threadIdx.x] = inputBuffer[threadIdx.x];
+        }
+    }
+
+    if (tid < NUM_BINS)
+    {
+        cdf[tid] = outputBuffer[threadIdx.x];
+    }
+}
+
+__global__ void
+BrentKungScan(unsigned int* cdf, const unsigned int* histogram)
+{
+    __shared__ unsigned int cache[NUM_BINS];
+    unsigned int tid = 2 * blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid < NUM_BINS)
+    {
+        cache[threadIdx.x] = histogram[tid];
+    }
+
+    if (tid + blockDim.x < NUM_BINS)
+    {
+        cache[threadIdx.x + blockDim.x] = histogram[tid + blockDim.x];
+    }
+
+    for (unsigned int stride = 1; stride <= blockDim.x; stride *= 2)
+    {
+        __syncthreads();
+
+        unsigned int index = (threadIdx.x + 1) * 2 * stride - 1;
+        if (index < NUM_BINS)
+        {
+            cache[index] += cache[index - stride];
+        }
+    }
+
+    for (unsigned int stride = NUM_BINS / 4; stride > 0; stride /= 2)
+    {
+        __syncthreads();
+
+        unsigned int index = (threadIdx.x + 1) * stride * 2 - 1;
+        if (index + stride < NUM_BINS)
+        {
+            cache[index + stride] += cache[index];
+        }
+    }
+
+    __syncthreads();
+    if (tid < NUM_BINS)
+    {
+        cdf[tid] = cache[threadIdx.x];
+    }
+    if (tid + blockDim.x < NUM_BINS)
+    {
+        cdf[tid + blockDim.x] = cache[threadIdx.x + blockDim.x];
     }
 }
 
@@ -126,10 +230,18 @@ EqualizeHistogram(unsigned char* output,
     }
 }
 
+enum class ScanType
+{
+    KoggeStone,
+    KoggeStoneDoubleBuffer,
+    BrentKung
+};
+
 void
 CudaHistogramEqualization(const unsigned char* hostInput,
                           unsigned char* hostOutput,
-                          const unsigned int pixelCount)
+                          const unsigned int pixelCount,
+                          const ScanType scanType)
 {
     unsigned char *deviceInput, *deviceOutput;
     unsigned int *deviceHistogram, *deviceCdf;
@@ -149,7 +261,25 @@ CudaHistogramEqualization(const unsigned char* hostInput,
 
     CalculateHistogram<<<gridDim, BLOCK_SIZE>>>(deviceInput, deviceHistogram, pixelCount);
 
-    CalculateCdf<<<1, NUM_BINS>>>(deviceCdf, deviceHistogram);
+    switch (scanType)
+    {
+    case ScanType::KoggeStone:
+        KoggeStoneScan<<<1, NUM_BINS>>>(deviceCdf, deviceHistogram);
+        break;
+    case ScanType::KoggeStoneDoubleBuffer:
+        KoggeStoneScanDoubleBuffer<<<1, NUM_BINS>>>(deviceCdf, deviceHistogram);
+        break;
+    case ScanType::BrentKung:
+        BrentKungScan<<<1, NUM_BINS>>>(deviceCdf, deviceHistogram);
+        break;
+    default:
+        std::cerr << "Error: Invalid scan type specified!" << std::endl;
+        cudaFree(deviceInput);
+        cudaFree(deviceOutput);
+        cudaFree(deviceHistogram);
+        cudaFree(deviceCdf);
+        return;
+    }
 
     unsigned int hostCdf[NUM_BINS];
     cudaMemcpy(hostCdf, deviceCdf, histogramSize, cudaMemcpyDeviceToHost);
@@ -212,7 +342,7 @@ main()
         for (int i = 0; i < NUM_ITERATIONS; i++)
         {
             auto start = std::chrono::high_resolution_clock::now();
-            CudaHistogramEqualization(input.ptr(), output.ptr(), pixelCount);
+            CudaHistogramEqualization(input.ptr(), output.ptr(), pixelCount, ScanType::KoggeStone);
             auto stop = std::chrono::high_resolution_clock::now();
             totalCudaTime +=
                 std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
