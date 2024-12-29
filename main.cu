@@ -14,10 +14,16 @@ SequentialHistogramEqualization(const unsigned char* input,
                                 unsigned char* output,
                                 const unsigned int pixelCount)
 {
+    if (input == nullptr || output == nullptr || pixelCount == 0)
+    {
+        return;
+    }
+
     unsigned int histogram[NUM_BINS] = {0};
     unsigned int cdf[NUM_BINS] = {0};
 
-    int cdfMin = -1;
+    bool cdfMinIsSet = false;
+    unsigned int cdfMin;
 
     for (unsigned int i = 0; i < pixelCount; i++)
     {
@@ -31,10 +37,20 @@ SequentialHistogramEqualization(const unsigned char* input,
         {
             cdf[i] += cdf[i - 1];
         }
-        if (cdfMin == -1 && cdf[i] > 0)
+        if (!cdfMinIsSet && cdf[i] > 0)
         {
-            cdfMin = static_cast<int>(cdf[i]);
+            cdfMin = cdf[i];
+            cdfMinIsSet = true;
         }
+    }
+
+    if (pixelCount == cdfMin)
+    {
+        for (unsigned int i = 0; i < pixelCount; i++)
+        {
+            output[i] = input[i];
+        }
+        return;
     }
 
     for (unsigned int& value : cdf)
