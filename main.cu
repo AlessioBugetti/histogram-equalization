@@ -240,9 +240,13 @@ EqualizeHistogram(unsigned char* output,
                   const unsigned int* cdf,
                   const unsigned int pixelCount)
 {
-    if (const unsigned int tid = threadIdx.x + blockIdx.x * blockDim.x; tid < pixelCount)
+    unsigned int tid = threadIdx.x + blockIdx.x * blockDim.x;
+    const unsigned int stride = blockDim.x * gridDim.x;
+
+    while (tid < pixelCount)
     {
         output[tid] = cdf[input[tid]];
+        tid += stride;
     }
 }
 
