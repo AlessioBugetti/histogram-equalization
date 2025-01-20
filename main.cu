@@ -3,6 +3,7 @@
 #include <cuda_runtime.h>
 #include <filesystem>
 #include <iostream>
+#include <limits>
 #include <opencv2/opencv.hpp>
 
 #define BLOCK_SIZE 1024
@@ -23,7 +24,7 @@ SequentialHistogramEqualization(const unsigned char* input,
     unsigned int cdf[NUM_BINS] = {0};
 
     bool cdfMinIsSet = false;
-    unsigned int cdfMin;
+    unsigned int cdfMin = std::numeric_limits<unsigned int>::max();
 
     for (unsigned int i = 0; i < pixelCount; i++)
     {
@@ -37,7 +38,7 @@ SequentialHistogramEqualization(const unsigned char* input,
         {
             cdf[i] += cdf[i - 1];
         }
-        if (!cdfMinIsSet && cdf[i] > 0)
+        if (!cdfMinIsSet)
         {
             cdfMin = cdf[i];
             cdfMinIsSet = true;
