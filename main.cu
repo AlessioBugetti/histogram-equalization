@@ -331,7 +331,8 @@ main()
 {
     const std::string data_directory = "../data/";
 
-    std::vector<std::tuple<std::string, double, double, double>> results;
+    std::vector<std::tuple<std::string, double, double, double, double, double, double, double>>
+        results;
 
     for (const auto& entry : std::filesystem::directory_iterator(data_directory))
     {
@@ -349,7 +350,9 @@ main()
         const auto pixelCount = input.rows * input.cols;
 
         long totalSequentialTime = 0;
-        long totalCudaTime = 0;
+        long totalCudaTimeKoggeStone = 0;
+        long totalCudaTimeKoggeStoneDoubleBuffer = 0;
+        long totalCudaTimeBrentKung = 0;
 
         for (int i = 0; i < NUM_ITERATIONS; i++)
         {
@@ -358,31 +361,64 @@ main()
             auto stop = std::chrono::high_resolution_clock::now();
             totalSequentialTime +=
                 std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
-        }
 
-        for (int i = 0; i < NUM_ITERATIONS; i++)
-        {
-            auto start = std::chrono::high_resolution_clock::now();
+            start = std::chrono::high_resolution_clock::now();
             CudaHistogramEqualization(input.ptr(), output.ptr(), pixelCount, ScanType::KoggeStone);
-            auto stop = std::chrono::high_resolution_clock::now();
-            totalCudaTime +=
+            stop = std::chrono::high_resolution_clock::now();
+            totalCudaTimeKoggeStone +=
+                std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
+
+            start = std::chrono::high_resolution_clock::now();
+            CudaHistogramEqualization(input.ptr(),
+                                      output.ptr(),
+                                      pixelCount,
+                                      ScanType::KoggeStoneDoubleBuffer);
+            stop = std::chrono::high_resolution_clock::now();
+            totalCudaTimeKoggeStoneDoubleBuffer +=
+                std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
+
+            start = std::chrono::high_resolution_clock::now();
+            CudaHistogramEqualization(input.ptr(), output.ptr(), pixelCount, ScanType::BrentKung);
+            stop = std::chrono::high_resolution_clock::now();
+            totalCudaTimeBrentKung +=
                 std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
         }
 
         double meanSequentialTime = static_cast<double>(totalSequentialTime) / NUM_ITERATIONS;
-        double meanCudaTime = static_cast<double>(totalCudaTime) / NUM_ITERATIONS;
+        double meanCudaTimeKoggeStone =
+            static_cast<double>(totalCudaTimeKoggeStone) / NUM_ITERATIONS;
+        double meanCudaTimeKoggeStoneDoubleBuffer =
+            static_cast<double>(totalCudaTimeKoggeStoneDoubleBuffer) / NUM_ITERATIONS;
+        double meanCudaTimeBrentKung = static_cast<double>(totalCudaTimeBrentKung) / NUM_ITERATIONS;
 
-        double speedup = meanSequentialTime / meanCudaTime;
+        double speedupKoggeStone = meanSequentialTime / meanCudaTimeKoggeStone;
+        double speedupKoggeStoneDoubleBuffer =
+            meanSequentialTime / meanCudaTimeKoggeStoneDoubleBuffer;
+        double speedupBrentKung = meanSequentialTime / meanCudaTimeBrentKung;
 
-        results.emplace_back(image_path, meanSequentialTime, meanCudaTime, speedup);
+        results.emplace_back(image_path,
+                             meanSequentialTime,
+                             meanCudaTimeKoggeStone,
+                             speedupKoggeStone,
+                             meanCudaTimeKoggeStoneDoubleBuffer,
+                             speedupKoggeStoneDoubleBuffer,
+                             meanCudaTimeBrentKung,
+                             speedupBrentKung);
     }
 
     for (const auto& result : results)
     {
         std::cout << "Image: " << std::get<0>(result) << std::endl;
         std::cout << "Average Sequential Time: " << std::get<1>(result) << " ns" << std::endl;
-        std::cout << "Average CUDA Time: " << std::get<2>(result) << " ns" << std::endl;
-        std::cout << "Speedup: " << std::get<3>(result) << std::endl;
+        std::cout << "Average CUDA Time (Kogge-Stone): " << std::get<2>(result) << " ns"
+                  << std::endl;
+        std::cout << "Speedup (Kogge-Stone): " << std::get<3>(result) << std::endl;
+        std::cout << "Average CUDA Time (Kogge-Stone Double Buffer): " << std::get<4>(result)
+                  << " ns" << std::endl;
+        std::cout << "Speedup (Kogge-Stone Double Buffer): " << std::get<5>(result) << std::endl;
+        std::cout << "Average CUDA Time (Brent-Kung): " << std::get<6>(result) << " ns"
+                  << std::endl;
+        std::cout << "Speedup (Brent-Kung): " << std::get<7>(result) << std::endl;
         std::cout << "------------------------" << std::endl;
     }
 
