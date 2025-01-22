@@ -102,16 +102,16 @@ python main.py
 
 ### Included Kernels:
 
-- CalculateHistogram: Computes the histogram for the input image.
-- KoggeStoneScan: Performs parallel prefix sum using the Kogge-Stone algorithm.
-- KoggeStoneScanDoubleBuffer: Performs parallel prefix sum using the Kogge-Stone algorithm with double buffer.
-- BrentKungScan: Performs parallel prefix sum using the Brent-Kung algorithm.
-- NormalizeCdf: Normalizes the CDF for intensity adjustment.
-- EqualizeHistogram: Applies the equalized histogram to the input image.
-  Performance
-  The implementation includes benchmarking capabilities that measure:
+- `CalculateHistogram`: Computes the histogram for the input image.
+- `KoggeStoneScan`: Performs parallel prefix sum using the Kogge-Stone algorithm.
+- `KoggeStoneScanDoubleBuffer`: Performs parallel prefix sum using the Kogge-Stone algorithm with double buffer.
+- `BrentKungScan`: Performs parallel prefix sum using the Brent-Kung algorithm.
+- `NormalizeCdf`: Normalizes the CDF for intensity adjustment.
+- `EqualizeHistogram`: Applies the equalized histogram to the input image.
+  
 
 ## Performance
+The implementation includes benchmarking capabilities that measure:
 - Sequential CPU execution time
 - CUDA execution time for each scan algorithm.
 - Speedup ratios compared to CPU implementation.
