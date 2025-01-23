@@ -119,10 +119,10 @@ The implementation includes benchmarking capabilities that measure:
 - Measurements are averaged over multiple iterations to ensure reliable results.
 
 ## Credits
-The images used, placed in the data folder, were sourced from the official European Space Agency (ESA) website dedicated to the Hubble Space Telescope. All credits to [NASA](http://www.nasa.gov/)/[ESA](http://www.esa.int/).
+The images used, placed in the [`data`](data/) folder, were sourced from the official European Space Agency (ESA) website dedicated to the Hubble Space Telescope. All credits to [NASA](http://www.nasa.gov/)/[ESA](http://www.esa.int/).
 
 ## License
-This project is licensed under the GPL-3.0-only License. See the [`LICENSE`](../LICENSE) file for more details.
+This project is licensed under the GPL-3.0-only License. See the [`LICENSE`](LICENSE) file for more details.
 
 ## Author
 Alessio Bugetti - alessiobugetti98@gmail.com
