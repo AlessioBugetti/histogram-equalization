@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+import argparse
+import subprocess
+import os
+import sys
+
+EXECUTABLE_NAME = "histogram_equalizer"
+
+def build_project():
+    os.makedirs("build", exist_ok=True)
+    os.chdir("build")
+    subprocess.run(["cmake", "-G", "Ninja", "../c++"], check=True)
+    subprocess.run(["ninja"], check=True)
+
+def run_executable():
+    executable_name = "histogram_equalizer"
+    executable_path = os.path.join("build", executable_name)
+    subprocess.run(["ninja"], cwd="build", check=True)
+    if not os.path.isfile(executable_path):
+        print(f"Error: Executable '{executable_name}' not found in the build directory")
+        sys.exit(1)
+    subprocess.run([executable_path], check=True)
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog='./histequalization', description="Histogram Equalization Utility")
+    subparsers = parser.add_subparsers(dest="command")
+
+    subparsers.add_parser("build", help="Build the project using ninja")
+    subparsers.add_parser("run", help="Run the executable")
+
+    args = parser.parse_args()
+
+    if args.command == "build":
+        build_project()
+    elif args.command == "run":
+        run_executable()
+    else:
+        parser.print_help()
+
+if __name__ == "__main__":
+    main()
