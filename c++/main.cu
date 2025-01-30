@@ -176,6 +176,7 @@ int main() {
       start = std::chrono::high_resolution_clock::now();
       CudaHistogramEqualization(input.ptr(), output.ptr(), pixelCount,
                                 ScanType::KoggeStone);
+      cudaDeviceSynchronize();
       stop = std::chrono::high_resolution_clock::now();
       totalCudaTimeKoggeStone +=
           std::chrono::duration<double, std::milli>(stop - start).count();
@@ -183,6 +184,7 @@ int main() {
       start = std::chrono::high_resolution_clock::now();
       CudaHistogramEqualization(input.ptr(), output.ptr(), pixelCount,
                                 ScanType::KoggeStoneDoubleBuffer);
+      cudaDeviceSynchronize();
       stop = std::chrono::high_resolution_clock::now();
       totalCudaTimeKoggeStoneDoubleBuffer +=
           std::chrono::duration<double, std::milli>(stop - start).count();
@@ -190,6 +192,7 @@ int main() {
       start = std::chrono::high_resolution_clock::now();
       CudaHistogramEqualization(input.ptr(), output.ptr(), pixelCount,
                                 ScanType::BrentKung);
+      cudaDeviceSynchronize();
       stop = std::chrono::high_resolution_clock::now();
       totalCudaTimeBrentKung +=
           std::chrono::duration<double, std::milli>(stop - start).count();
