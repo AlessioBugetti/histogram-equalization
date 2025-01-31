@@ -45,10 +45,13 @@ Corresponding histogram (red) and cumulative histogram (black):
 
 ```plaintext
 .
-├── main.py        # Python script for invoking CUDA kernels and managing the workflow
-├── main.cu        # CUDA source file containing the implementation of kernels
-├── kernel.cu      # CUDA kernel definitions
-└── data/          # Directory for input images
+├── python/
+│   └── main.py          # Python script for invoking CUDA kernels and managing the workflow
+├── c++/
+│   ├── main.cu          # CUDA source file containing the implementation of kernels
+│   └── kernel.cu        # CUDA kernel definitions
+├── data/                # Directory for input images
+└── histequalizer        # Script for compiling the project and running benchmarks
 ```
 
 ## Prerequisites
@@ -85,13 +88,8 @@ pip install -r requirements.txt
 
 ### C++
 ```sh
-# Build the project
-mkdir build && cd build
-cmake ..
-make
-
-# Run the program
-./histogram_equalization
+./histequalizer build
+./histequalizer run
 ```
 
 ### Python

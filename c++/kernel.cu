@@ -176,7 +176,7 @@ NormalizeCdf(unsigned int* cdf, const unsigned int pixelCount)
 
     if (tid == 0)
     {
-        cdfMin = cdf[cdfMinIndex]
+        cdfMin = cdf[cdfMinIndex];
     }
     __syncthreads();
 
