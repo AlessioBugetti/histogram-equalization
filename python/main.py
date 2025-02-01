@@ -12,7 +12,7 @@ import pycuda.autoinit
 from pycuda.compiler import SourceModule
 import time
 
-BLOCK_SIZE = 1024
+BLOCK_SIZE = 512
 NUM_BINS = 256
 NUM_ITERATIONS = 1000
 
@@ -75,7 +75,7 @@ def cuda_histogram_equalization(input_image, scan_type):
     cuda.memcpy_htod(device_input, input_image)
     cuda.memcpy_htod(device_histogram, histogram)
 
-    grid_dim = ((pixel_count + BLOCK_SIZE - 1) // BLOCK_SIZE, 1, 1)
+    grid_dim = ((pixel_count + BLOCK_SIZE - 1) // BLOCK_SIZE // 4, 1, 1)
 
     calculate_histogram(
         device_input, device_histogram, np.uint32(pixel_count),
@@ -178,3 +178,4 @@ if __name__ == "__main__":
         print(f"Average CUDA Time (Brent-Kung): {meanCudaTimeBrentKung:.6g} ms")
         print(f"Speedup (Brent-Kung): {speedupBrentKung:.6g}")
         print("------------------------")
+
