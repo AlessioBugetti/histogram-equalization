@@ -12,23 +12,47 @@ CalculateHistogram(const unsigned char* input,
                    const unsigned int pixelCount)
 {
     __shared__ unsigned int cache[NUM_BINS];
-    if (threadIdx.x < NUM_BINS)
+    for (unsigned int bin = threadIdx.x; bin < NUM_BINS; bin += blockDim.x)
     {
-        cache[threadIdx.x] = 0;
+        cache[bin] = 0;
     }
-
     __syncthreads();
 
-    if (const unsigned int tid = threadIdx.x + blockDim.x * blockIdx.x; tid < pixelCount)
-    {
-        atomicAdd(&(cache[input[tid]]), 1);
-    }
+    unsigned int accumulator = 0;
+    unsigned int prevBin = NUM_BINS;
 
+    const unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    for (unsigned int index = tid; index < pixelCount; index += blockDim.x * gridDim.x)
+    {
+        unsigned int currBin = input[index];
+        if (currBin != prevBin)
+        {
+            if (prevBin != NUM_BINS)
+            {
+                atomicAdd(&cache[prevBin], accumulator);
+            }
+            accumulator = 1;
+            prevBin = currBin;
+        }
+        else
+        {
+            accumulator++;
+        }
+    }
+    if (accumulator > 0)
+    {
+        atomicAdd(&cache[prevBin], accumulator);
+    }
     __syncthreads();
 
-    if (threadIdx.x < NUM_BINS)
+    for (unsigned int bin = threadIdx.x; bin < NUM_BINS; bin += blockDim.x)
     {
-        atomicAdd(&(histogram[threadIdx.x]), cache[threadIdx.x]);
+        unsigned int binValue = cache[bin];
+        if (binValue > 0)
+        {
+            atomicAdd(&histogram[bin], binValue);
+        }
     }
 }
 
@@ -193,8 +217,17 @@ EqualizeHistogram(unsigned char* output,
                   const unsigned int* cdf,
                   const unsigned int pixelCount)
 {
-    if (const unsigned int tid = threadIdx.x + blockIdx.x * blockDim.x; tid < pixelCount)
+    __shared__ unsigned int cache[NUM_BINS];
+    for (unsigned int bin = threadIdx.x; bin < NUM_BINS; bin += blockDim.x)
     {
-        output[tid] = cdf[input[tid]];
+        cache[bin] = cdf[bin];
+    }
+    __syncthreads();
+
+    const unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    for (unsigned int index = tid; index < pixelCount; index += blockDim.x * gridDim.x)
+    {
+        output[index] = cache[input[index]];
     }
 }

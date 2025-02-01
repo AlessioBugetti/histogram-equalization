@@ -14,7 +14,7 @@
 #include <limits>
 #include <opencv2/opencv.hpp>
 
-#define BLOCK_SIZE 1024
+#define BLOCK_SIZE 512
 #define NUM_ITERATIONS 1000
 #define CHECK(call)                                                                                \
     {                                                                                              \
@@ -76,8 +76,8 @@ SequentialHistogramEqualization(const unsigned char* input,
 
     for (unsigned int& value : cdf)
     {
-        value = static_cast<unsigned int>(
-            round(static_cast<double>(value - cdfMin) / (pixelCount - cdfMin) * (NUM_BINS - 1)));
+        value =
+            ((value - cdfMin) * (NUM_BINS - 1) + (pixelCount - cdfMin) / 2) / (pixelCount - cdfMin);
     }
 
     for (unsigned int i = 0; i < pixelCount; i++)
@@ -113,7 +113,7 @@ CudaHistogramEqualization(const unsigned char* hostInput,
     CHECK(cudaMemcpy(deviceInput, hostInput, imageSize, cudaMemcpyHostToDevice));
     CHECK(cudaMemset(deviceHistogram, 0, histogramSize));
 
-    dim3 gridDimImage((pixelCount + BLOCK_SIZE - 1) / BLOCK_SIZE, 1, 1);
+    dim3 gridDimImage((pixelCount + BLOCK_SIZE - 1) / BLOCK_SIZE / 4, 1, 1);
     dim3 blockDimImage(BLOCK_SIZE, 1, 1);
 
     CalculateHistogram<<<gridDimImage, blockDimImage>>>(deviceInput, deviceHistogram, pixelCount);
