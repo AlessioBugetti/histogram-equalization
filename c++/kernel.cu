@@ -11,10 +11,10 @@ CalculateHistogram(const unsigned char* input,
                    unsigned int* histogram,
                    const unsigned int pixelCount)
 {
-    __shared__ unsigned int cache[NUM_BINS];
+    __shared__ unsigned int histShared[NUM_BINS];
     for (unsigned int bin = threadIdx.x; bin < NUM_BINS; bin += blockDim.x)
     {
-        cache[bin] = 0;
+        histShared[bin] = 0;
     }
     __syncthreads();
 
@@ -30,7 +30,7 @@ CalculateHistogram(const unsigned char* input,
         {
             if (prevBin != NUM_BINS)
             {
-                atomicAdd(&cache[prevBin], accumulator);
+                atomicAdd(&histShared[prevBin], accumulator);
             }
             accumulator = 1;
             prevBin = currBin;
@@ -42,13 +42,13 @@ CalculateHistogram(const unsigned char* input,
     }
     if (accumulator > 0)
     {
-        atomicAdd(&cache[prevBin], accumulator);
+        atomicAdd(&histShared[prevBin], accumulator);
     }
     __syncthreads();
 
     for (unsigned int bin = threadIdx.x; bin < NUM_BINS; bin += blockDim.x)
     {
-        unsigned int binValue = cache[bin];
+        unsigned int binValue = histShared[bin];
         if (binValue > 0)
         {
             atomicAdd(&histogram[bin], binValue);
@@ -59,12 +59,12 @@ CalculateHistogram(const unsigned char* input,
 __global__ void
 KoggeStoneScan(unsigned int* cdf, const unsigned int* histogram)
 {
-    __shared__ unsigned int cache[NUM_BINS];
+    __shared__ unsigned int cdfShared[NUM_BINS];
     const unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (tid < NUM_BINS)
     {
-        cache[threadIdx.x] = histogram[tid];
+        cdfShared[threadIdx.x] = histogram[tid];
     }
 
     for (unsigned int stride = 1; stride < blockDim.x; stride *= 2)
@@ -73,35 +73,35 @@ KoggeStoneScan(unsigned int* cdf, const unsigned int* histogram)
         unsigned int temp = 0;
         if (threadIdx.x >= stride)
         {
-            temp = cache[threadIdx.x - stride];
+            temp = cdfShared[threadIdx.x - stride];
         }
         __syncthreads();
 
         if (threadIdx.x >= stride)
         {
-            cache[threadIdx.x] += temp;
+            cdfShared[threadIdx.x] += temp;
         }
     }
 
     if (tid < NUM_BINS)
     {
-        cdf[tid] = cache[threadIdx.x];
+        cdf[tid] = cdfShared[threadIdx.x];
     }
 }
 
 __global__ void
 KoggeStoneScanDoubleBuffer(unsigned int* cdf, const unsigned int* histogram)
 {
-    __shared__ unsigned int cache[NUM_BINS];
-    __shared__ unsigned int cacheAux[NUM_BINS];
+    __shared__ unsigned int cdfShared[NUM_BINS];
+    __shared__ unsigned int cdfSharedAux[NUM_BINS];
 
-    unsigned int* inputBuffer = cache;
-    unsigned int* outputBuffer = cacheAux;
+    unsigned int* inputBuffer = cdfShared;
+    unsigned int* outputBuffer = cdfSharedAux;
 
     const unsigned int tid = threadIdx.x + blockIdx.x * blockDim.x;
     if (tid < NUM_BINS)
     {
-        cache[threadIdx.x] = histogram[tid];
+        cdfShared[threadIdx.x] = histogram[tid];
     }
 
     for (unsigned int stride = 1; stride < blockDim.x; stride *= 2)
@@ -132,16 +132,16 @@ KoggeStoneScanDoubleBuffer(unsigned int* cdf, const unsigned int* histogram)
 __global__ void
 BrentKungScan(unsigned int* cdf, const unsigned int* histogram)
 {
-    __shared__ unsigned int cache[NUM_BINS];
+    __shared__ unsigned int cdfShared[NUM_BINS];
     const unsigned int tid = 2 * blockIdx.x * blockDim.x + threadIdx.x;
     if (tid < NUM_BINS)
     {
-        cache[threadIdx.x] = histogram[tid];
+        cdfShared[threadIdx.x] = histogram[tid];
     }
 
     if (tid + blockDim.x < NUM_BINS)
     {
-        cache[threadIdx.x + blockDim.x] = histogram[tid + blockDim.x];
+        cdfShared[threadIdx.x + blockDim.x] = histogram[tid + blockDim.x];
     }
 
     for (unsigned int stride = 1; stride <= blockDim.x; stride *= 2)
@@ -151,7 +151,7 @@ BrentKungScan(unsigned int* cdf, const unsigned int* histogram)
         unsigned int index = (threadIdx.x + 1) * 2 * stride - 1;
         if (index < NUM_BINS)
         {
-            cache[index] += cache[index - stride];
+            cdfShared[index] += cdfShared[index - stride];
         }
     }
 
@@ -162,18 +162,18 @@ BrentKungScan(unsigned int* cdf, const unsigned int* histogram)
         unsigned int index = (threadIdx.x + 1) * stride * 2 - 1;
         if (index + stride < NUM_BINS)
         {
-            cache[index + stride] += cache[index];
+            cdfShared[index + stride] += cdfShared[index];
         }
     }
 
     __syncthreads();
     if (tid < NUM_BINS)
     {
-        cdf[tid] = cache[threadIdx.x];
+        cdf[tid] = cdfShared[threadIdx.x];
     }
     if (tid + blockDim.x < NUM_BINS)
     {
-        cdf[tid + blockDim.x] = cache[threadIdx.x + blockDim.x];
+        cdf[tid + blockDim.x] = cdfShared[threadIdx.x + blockDim.x];
     }
 }
 
@@ -190,7 +190,7 @@ NormalizeCdf(unsigned int* cdf, const unsigned int pixelCount)
     }
     __syncthreads();
 
-    if (cdf[tid] != 0)
+    if (tid < NUM_BINS && cdf[tid] != 0)
     {
         atomicMin(&cdfMinIndex, tid);
     }
@@ -217,10 +217,10 @@ EqualizeHistogram(unsigned char* output,
                   const unsigned int* cdf,
                   const unsigned int pixelCount)
 {
-    __shared__ unsigned int cache[NUM_BINS];
+    __shared__ unsigned int cdfShared[NUM_BINS];
     for (unsigned int bin = threadIdx.x; bin < NUM_BINS; bin += blockDim.x)
     {
-        cache[bin] = cdf[bin];
+        cdfShared[bin] = cdf[bin];
     }
     __syncthreads();
 
@@ -228,6 +228,6 @@ EqualizeHistogram(unsigned char* output,
 
     for (unsigned int index = tid; index < pixelCount; index += blockDim.x * gridDim.x)
     {
-        output[index] = cache[input[index]];
+        output[index] = cdfShared[input[index]];
     }
 }
